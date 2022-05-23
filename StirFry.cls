@@ -36,6 +36,8 @@ Const MIN_BLOCK_SIZE = 16       ' The minimum encryption block, 128-bits.
 Const MAX_BLOCK_SIZE = 512      ' The maximum encryption block, 4096-bits.
 Const TO_LEFT = True
 Const TO_RIGHT = False
+Const TO_FLIP = True
+Const TO_FLIP_NOT = False
 
 Dim this_arSeasoning() As Byte
 Dim this_block_size As Integer
@@ -52,14 +54,27 @@ Public Function Help(Optional stMethodName As String = "?") As String
     stF = IIf(stF = "", "?", stF)
     Select Case stF
     Case "HELP"
-        tmp = "In memory of my dear friend Zhu Qian.(2021-12-09)" & vbCrLf & _
+        tmp = "In memory of my dear friend Zhu Qian(1964 - 2021)" & vbCrLf & _
             "Usage: Help(Method_Name)" & vbCrLf & _
             "       Help(?) for a list of functions."
     Case "?"
         tmp = "The module contains following functions:" & vbCrLf & _
             "Help" & vbCrLf & _
-            "" & vbCrLf & _
+            "License" & vbCrLf & _
             "Usage: Help(Method_Name)"
+    Case "LICENSE"
+        tmp = "StirFry is an encrypt/decrypt software based on my own algorithm, which is NOT tested for the strength of security." & vbCrLf & _
+            "Copyright (C) 2022 Robert Xie" & vbCrLf & _
+            "This program is free software: you can redistribute it and/or modify" & vbCrLf & _
+            "it under the terms of the GNU General Public License as published by" & vbCrLf & _
+            "the Free Software Foundation, either version 3 of the License, or" & vbCrLf & _
+            "(at your option) any later version." & vbCrLf & _
+            "This program is distributed in the hope that it will be useful," & vbCrLf & _
+            "but WITHOUT ANY WARRANTY; without even the implied warranty of" & vbCrLf & _
+            "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the" & vbCrLf & _
+            "GNU General Public License for more details." & vbCrLf & _
+            "You should have received a copy of the GNU General Public License" & vbCrLf & _
+            "along with this program.  If not, see <https://www.gnu.org/licenses/>."
     Case Else
         tmp = stMethodName & " does not exit in this module."
     End Select
@@ -314,7 +329,7 @@ On Error GoTo Err_Encrypt_Block
     ShuffleStringBlock byteArray, this_sub_block_size, iShift, TO_LEFT
     
     ' Second round of applying the password
-    DoStirFry byteArray, iShift, TO_LEFT
+    DoStirFry byteArray, iShift, TO_LEFT, TO_FLIP
 Exit_Encrypt_Block:
     Encrypt_Block = ByteArrayToString(byteArray)
     Exit Function
@@ -341,7 +356,7 @@ On Error GoTo Err_Decrypt_Block
     byteArray = StringToByteArray(stInput)
     
     ' Second round of applying the password
-    DoStirFry byteArray, iShift, TO_RIGHT
+    DoStirFry byteArray, iShift, TO_RIGHT, TO_FLIP
     
     ' Shuffle use primary numbers for bits.
     ShuffleStringBlock byteArray, this_sub_block_size, iShift, TO_RIGHT
@@ -533,15 +548,29 @@ Err_ShuffleStringBlock:
     Resume Exit_ShuffleStringBlock
 End Sub
 
-Private Sub DoStirFry(ByRef byteCai() As Byte, iShift As Integer, bToLeft As Boolean)
+Private Sub DoStirFry(ByRef byteCai() As Byte, iShift As Integer, bToLeft As Boolean, Optional bFlip As Boolean = False)
     Dim i As Integer
     Dim iPrimeCount As Integer
-    
+    Dim iUB As Integer
+    Dim arSeasoning() As Byte
+        
     iPrimeCount = UBound(this_iPrime) + 1
+    iUB = UBound(this_arSeasoning)
+    ReDim arSeasoning(iUB)
+    
+    If bFlip Then
+        For i = 0 To iUB
+            arSeasoning(i) = this_arSeasoning(iUB - i)
+        Next i
+    Else
+        For i = 0 To iUB
+            arSeasoning(i) = this_arSeasoning(i)
+        Next i
+    End If
     
     If bToLeft Then
-        For i = 0 To this_block_size - 1
-            byteCai(i) = BitXor(byteCai(i), this_arSeasoning(i))
+        For i = 0 To iUB
+            byteCai(i) = BitXor(byteCai(i), arSeasoning(i))
             If i Mod 2 = 0 Then
                 BitRotateCombined byteCai, this_iPrime(i Mod iPrimeCount), TO_LEFT
             Else
@@ -549,13 +578,13 @@ Private Sub DoStirFry(ByRef byteCai() As Byte, iShift As Integer, bToLeft As Boo
             End If
         Next i
     Else
-        For i = this_block_size - 1 To 0 Step -1
+        For i = iUB To 0 Step -1
             If i Mod 2 = 0 Then
                 BitRotateCombined byteCai, this_iPrime(i Mod iPrimeCount), TO_RIGHT
             Else
                 ShuffleStringBlock byteCai, this_sub_block_size, iShift, TO_RIGHT
             End If
-            byteCai(i) = BitXor(byteCai(i), this_arSeasoning(i))
+            byteCai(i) = BitXor(byteCai(i), arSeasoning(i))
         Next i
     End If
 End Sub
